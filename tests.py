@@ -1,6 +1,6 @@
 from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
-
+from functions.write_file import write_file
 # script for running tests to ensure get_files_info works correctly
 if __name__ == "__main__":
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # Test if get_file_content truncates correctly to MAX_CHAR limit
     # print(get_file_content("calculator", "lorem.txt"))
 
-    
+    """
     print("Result for 'main.py' within 'calculator' directory:")
     print(get_file_content("calculator", "main.py"))
 
@@ -35,4 +35,8 @@ if __name__ == "__main__":
 
     print("\nResult for 'pkg/does_not_exist.py':")
     print(get_file_content("calculator", "pkg/does_not_exist.py"))
-
+    """
+    # Used to test write_file
+    print(write_file("calculator", "lorem.txt", "wait, this isn't lorem ipsum"))
+    print(write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet"))
+    print(write_file("calculator", "/tmp/temp.txt", "this should not be allowed"))
