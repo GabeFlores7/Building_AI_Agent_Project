@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from functions.available_functions import schema_get_files_info, schema_get_file_content, schema_run_python_file, schema_write_file
-
+from functions.call_function import call_function
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 
@@ -44,6 +44,8 @@ def main():
 
     user_prompt = args[1] # store user input/prompt
 
+    verbose = len(sys.argv) > 2 and sys.argv[2] == "--verbose"
+
     messages = [types.Content(role="user", parts=[types.Part(text=user_prompt)]),] # store prompt history into messages list of objects
     
 
@@ -54,17 +56,26 @@ def main():
     config= types.GenerateContentConfig(
         tools= [available_functions],
         system_instruction= system_prompt),
-)
+        )
 
+    if response.function_calls:
+        for function_call_part in response.function_calls:
+            res = call_function(function_call_part, verbose)
+            if not res.parts or not res.parts[0].function_response or not res.parts[0].function_response.response:
+                raise Exception("Function call returned no response")
 
+            if verbose:
+                print(f"-> {res.parts[0].function_response.response}")
+    """
     if response.function_calls:
         for functions_call_part in response.function_calls:
             print(f"Calling function: {functions_call_part.name}({functions_call_part.args})")
     else:
         print(response.text) # print model's response to console
-
+    """
+     
     # If verbose option is selected
-    if len(args) > 2 and args[2] == "--verbose":
+    if verbose:
         print(f"User prompt: {args[1]}")
         # provide metadata to user
         print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
