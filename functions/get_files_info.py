@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
 def get_files_info(working_directory, directory="."):
     # Create variables to store absolute paths of working dir and desired dir
@@ -28,3 +31,20 @@ def get_files_info(working_directory, directory="."):
         return contents_string
     except Exception as e: # return error string if any errors occur
         return f"Error: {e}"
+
+
+# Used to tell the LLM how to use the function
+
+schema_get_files_info = types.FunctionDeclaration(
+    name="get_files_info",
+    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
+            ),
+        },
+    ),
+)
