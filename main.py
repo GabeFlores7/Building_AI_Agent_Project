@@ -5,6 +5,8 @@ from google import genai
 from google.genai import types
 from functions.available_functions import schema_get_files_info, schema_get_file_content, schema_run_python_file, schema_write_file
 from functions.call_function import call_function
+from config import MAX_RESPONSES
+
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 
@@ -21,7 +23,7 @@ When a user asks a question or makes a request, make a function call plan. You c
 - Execute Python files with optional arguments
 - Write or overwrite files
 
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+All paths you provide should be relative to the working directory. Use working_directory='./calculator' when accessing calculator files unless already scoped. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
 
 available_functions = types.Tool(
@@ -36,6 +38,8 @@ available_functions = types.Tool(
 def main():
     print("Hello from building-ai-agent-project!") # user greeting
 
+    response_count = 0
+    
     args = sys.argv # recieve user input/prompt from CLI
 
     if len(args) < 2: # If no prompt was passed, print error and exit script
@@ -48,38 +52,56 @@ def main():
 
     messages = [types.Content(role="user", parts=[types.Part(text=user_prompt)]),] # store prompt history into messages list of objects
     
+    while response_count <= MAX_RESPONSES:
+        response_count += 1
+        try:
+            # Feed user input into LLM
+            response= client.models.generate_content(
+            model= model_name,
+            contents= messages,
+            config= types.GenerateContentConfig(
+                tools= [available_functions],
+                system_instruction= system_prompt),
+                )
+        
+            # append response to historical messages list, step 2
+            if response.candidates:
+                for candidate in response.candidates:
+                    messages.append(candidate.content)
 
-    # Feed user input into LLM
-    response= client.models.generate_content(
-    model= model_name,
-    contents= messages,
-    config= types.GenerateContentConfig(
-        tools= [available_functions],
-        system_instruction= system_prompt),
-        )
+            if response.function_calls:
+                for function_call_part in response.function_calls:
+                    if verbose:
+                        print(f" - Calling function: {function_call_part.name}({function_call_part.args})")
+                    else:
+                        print(f" - Calling function: {function_call_part.name}")
+                    res = call_function(function_call_part, verbose)
+                    if not res.parts or not res.parts[0].function_response or not res.parts[0].function_response.response:
+                        raise Exception("Function call returned no response")
 
-    if response.function_calls:
-        for function_call_part in response.function_calls:
-            res = call_function(function_call_part, verbose)
-            if not res.parts or not res.parts[0].function_response or not res.parts[0].function_response.response:
-                raise Exception("Function call returned no response")
+                    messages.append(res)
 
+                    if verbose:
+                        print(f"-> {res.parts[0].function_response.response}")
+        
+            # If verbose option is selected
             if verbose:
-                print(f"-> {res.parts[0].function_response.response}")
-    """
-    if response.function_calls:
-        for functions_call_part in response.function_calls:
-            print(f"Calling function: {functions_call_part.name}({functions_call_part.args})")
-    else:
-        print(response.text) # print model's response to console
-    """
-     
-    # If verbose option is selected
-    if verbose:
-        print(f"User prompt: {args[1]}")
-        # provide metadata to user
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.prompt_token_count}")
+                print(f"User prompt: {args[1]}")
+                # provide metadata to user
+                print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+                print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+
+            has_tool_calls = bool(response.function_calls)
+            final_text = None
+            if not has_tool_calls and response.candidates:
+                parts = response.candidates[0].content.parts or []
+                final_text = "".join(p.text for p in parts if hasattr(p, "text") and p.text)
+                if final_text:
+                    print(f"Final response:\n {final_text}")
+                    break
+        
+        except Exception as e:
+            print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
